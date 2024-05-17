@@ -1,6 +1,8 @@
 import pygame
 import main
 import ppu
+import prettyhex
+
 
 def reset():
     main.memory.rom = [0 for _ in range(2**15)]
@@ -46,8 +48,8 @@ def test_registers(expected_registers):
         return "Registers: \033[92mOK\033[0m"
     else:
         error = "Registers: \033[91mError\033[0m"
-        error += "\nExpected:      " + str(expected_registers)
-        error += "\nGot:           " + str(main.registers.debug_compare())
+        error += "\nExpected:      " + str(list(map(prettyhex.prettyhex, expected_registers)))
+        error += "\nGot:           " + str(list(map(prettyhex.prettyhex, main.registers.debug_compare())))
         return error
 
 def test_ram(address, expected_result):
@@ -141,6 +143,24 @@ if __name__ == "__main__":
     run_test(rom, "Relative jumps", 7, 100)
 
     expected_registers = [0x32b0, 0x3213, 0x32d8, 0x014d, 0xfffe, 0x015c, 0]
+    print(test_registers(expected_registers))
+
+    reset()
+
+    # Test 8
+    rom = "tests/AddCarryTest.gb"
+    run_test(rom, "ADC carry", 8, 100)
+
+    expected_registers = [0x0600, 0x0013, 0x00d8, 0x014d, 0xfffe, 0x0156, 0]
+    print(test_registers(expected_registers))
+
+    reset()
+
+    # Test 9
+    rom = "tests/POPAF.gb"
+    run_test(rom, "POP AF", 9, 200)
+
+    expected_registers = [0x00c0, 0x1200, 0x1200, 0x5757, 0xfffe, 0x016a, 0]
     print(test_registers(expected_registers))
 
     reset()

@@ -63,13 +63,16 @@ class Registers:
             self.r[key] = value
 
     def __repr__(self):
-        rstring = "AF  = $" + prettyhex.prettyhex(self["a"]) + prettyhex.prettyhex(self["f"])
-        rstring += "\nBC  = $" + prettyhex.prettyhex(self["b"]) + prettyhex.prettyhex(self["c"])
-        rstring += "\nDE  = $" + prettyhex.prettyhex(self["d"]) + prettyhex.prettyhex(self["e"])
-        rstring += "\nHL  = $" + prettyhex.prettyhex(self["h"]) + prettyhex.prettyhex(self["l"])
-        rstring += "\nSP  = $" + str(hex(self["sp"]))[2:]
-        rstring += "\nPC  = $" + str(hex(self.pc))[2:]
-        rstring += "\nIME = " + str(registers.ime) + "\n"
+        rstring = "AF  = $" + prettyhex.prettyhex2(self["a"]) + prettyhex.prettyhex2(self["f"])
+        rstring += "\nBC  = $" + prettyhex.prettyhex2(self["b"]) + prettyhex.prettyhex2(self["c"])
+        rstring += "\nDE  = $" + prettyhex.prettyhex2(self["d"]) + prettyhex.prettyhex2(self["e"])
+        rstring += "\nHL  = $" + prettyhex.prettyhex2(self["h"]) + prettyhex.prettyhex2(self["l"])
+        rstring += "\nSP  = $" + prettyhex.prettyhex(self["sp"])
+        rstring += "\nPC  = $" + prettyhex.prettyhex(self.pc)
+        if self.ime == 1:
+            rstring += "\nIME = Enabled\n"
+        else:
+            rstring += "\nIME = Disabled\n"
         return rstring
 
     def debug_compare(self):
@@ -120,7 +123,8 @@ class Memory:
     def __setitem__(self, key, value):
         # ROM
         if 0x0000 <= key <= 0x7fff:
-            self.rom[key] = value
+            #self.rom[key] = value
+            pass
         # VRAM
         elif 0x8000 <= key <= 0x9fff:
             self.vram[key - 0x8000] = value
@@ -301,9 +305,8 @@ def execute(instruction):
             decoded_instruction = ["INC", operand_stk_r8]
             registers.pc += 1
             registers.flag_subtraction = 0
-            registers[operand_stk_r8] += 1
-            registers.flag_carry = is_carry(registers[operand_stk_r8], 1, 8)
             registers.flag_half_carry = is_carry(registers[operand_stk_r8], 1, 4)
+            registers[operand_stk_r8] += 1
             registers[operand_stk_r8] &= 255
             if registers[operand_stk_r8] == 0:
                 registers.flag_zero = 1
@@ -314,9 +317,8 @@ def execute(instruction):
             decoded_instruction = ["DEC", operand_stk_r8]
             registers.pc += 1
             registers.flag_subtraction = 1
-            registers[operand_stk_r8] -= 1
-            registers.flag_carry = is_carry(registers[operand_stk_r8], 1, 8)
             registers.flag_half_carry = is_carry(registers[operand_stk_r8], 1, 4)
+            registers[operand_stk_r8] -= 1
             registers[operand_stk_r8] &= 255
             if registers[operand_stk_r8] == 0:
                 registers.flag_zero = 1
@@ -535,7 +537,7 @@ def execute(instruction):
             registers.flag_subtraction = 1
             registers.flag_carry = is_carry(registers["a"], imm8, 8)
             registers.flag_half_carry = is_carry(registers["a"], imm8, 4)
-            if registers["a"] - imm8 == 0:
+            if registers["a"] - registers[operand_r8] == 0:
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
@@ -986,18 +988,22 @@ if __name__ == "__main__":
     pygame.init()
     #pygamedisplay = pygame.display.set_mode((256 * size_mul, 256 * size_mul))
     pygamedisplay = pygame.display.set_mode((160 * size_mul, 144 * size_mul))
-    rom = "testsPrivate/02-interrupts.gb"
+    pygame.display.set_caption("SillyGB")
+
     rom = "testsPrivate/05-op rp.gb"
-    rom = "testsPrivate/04-op r,imm.gb"
     rom = "testsPrivate/10-bit ops.gb"
-    rom = "testsPrivate/07-jr,jp,call,ret,rst.gb"
-    rom = "testsPrivate/03-op sp,hl.gb"
     rom = "testsPrivate/08-misc instrs.gb"
     rom = "testsPrivate/11-op a,(hl).gb"
-    rom = "testsPrivate/09-op r,r.gb"
-    rom = "testsPrivate/06-ld r,r.gb"
+    rom = "testsPrivate/bgbtest.gb"
     rom = "tests/hello-world.gb"
+    rom = "testsPrivate/03-op sp,hl.gb"
+    rom = "testsPrivate/09-op r,r.gb"
+    rom = "testsPrivate/07-jr,jp,call,ret,rst.gb"
+    rom = "testsPrivate/02-interrupts.gb"
     rom = "testsPrivate/Tetris.gb"
+    rom = "testsPrivate/04-op r,imm.gb"
+    rom = "testsPrivate/06-ld r,r.gb"
+    rom = "testsPrivate/01-special.gb"
     load_rom(rom)
 
     display = []
@@ -1005,16 +1011,23 @@ if __name__ == "__main__":
         row = [0 for _ in range(256)]
         display.append(row)
 
-    breakpoints = [0x2795]
+    breakpoint = 0xc884
+    found = False
 
     # Execution
     tick = 1
     done = False
+    #for i in range(59999):
     while not done:
-        print(hex(registers.pc), execute(fetch()))
-        print(registers)
-        if registers.pc in breakpoints:
-            input("\n-->")
+
+        if registers.pc == breakpoint:
+            found = True
+
+        execute(fetch())
+        if found:
+            print(registers)
+
+        #input("\n-->")
 
         #vblank
         memory[0xff44] += 1
@@ -1033,4 +1046,4 @@ if __name__ == "__main__":
             pygame.display.flip()
         tick += 1
 
-pygame.quit()
+    pygame.quit()
