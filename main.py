@@ -237,16 +237,16 @@ def execute(instruction):
 
     # block 0
     if 0x00 <= opcode <= 0X3f:
-        # NOP
+        # NOP (----)
         if opcode == 0x00:
             decoded_instruction = ["NOP"]
             registers.pc += 1
-        # LD r16, imm16
+        # LD r16, imm16 (----)
         elif opcode in [0x01, 0x11, 0x21, 0x31]:
             decoded_instruction = ["LD", operand_r16, hex(imm16)]
             registers.pc += 3
             registers[operand_r16] = imm16
-        # LD [r16mem], a
+        # LD [r16mem], a (----)
         elif opcode in [0x02, 0x12, 0x22, 0x32]:
             decoded_instruction = ["LD", ("[" + dest_source_r16mem + "]"), "a"]
             registers.pc += 1
@@ -260,7 +260,7 @@ def execute(instruction):
                 registers["hl"] &= 65535
             else:
                 memory[registers[dest_source_r16mem]] = registers["a"]
-        # LD a, [r16mem]
+        # LD a, [r16mem] (----)
         elif opcode in [0x0a, 0x1a, 0x2a, 0x3a]:
             decoded_instruction = ["LD", "a", ("[" + dest_source_r16mem+ "]")]
             registers.pc += 1
@@ -274,33 +274,34 @@ def execute(instruction):
                 registers["hl"] &= 65535
             else:
                 registers["a"] = memory[registers[dest_source_r16mem]]
-        # LD [imm16], sp
+        # LD [imm16], sp (----)
         elif opcode == 0x08:
             decoded_instruction = ["LD", ("[" + str(hex(imm16)) + "]")]
             registers.pc += 3
             memory[imm16] = registers["sp"] & 255
             memory[imm16 + 1] = registers["sp"] >> 8
-        # INC r16
+        # INC r16 (----)
         elif opcode in [0x03, 0x13, 0x23, 0x33]:
             decoded_instruction = ["INC", operand_r16]
             registers.pc += 1
             registers[operand_r16] += 1
             registers[operand_r16] &= 65535
-        # DEC r16
+        # DEC r16 (----)
         elif opcode in [0x0b, 0x1b, 0x2b, 0x3b]:
             decoded_instruction = ["DEC", operand_r16]
             registers.pc += 1
             registers[operand_r16] -= 1
             registers[operand_r16] &= 65535
-        # ADD hl, r16
+        # ADD hl, r16 (-0HC)
         elif opcode in [0x09, 0x19, 0x29, 0x39]:
+            decoded_instruction = ["ADD", "hl", operand_r16]
             registers.pc += 1
             registers.flag_subtraction = 0
             registers.flag_carry = is_carry(registers["hl"], registers[operand_r16], 16)
             registers.flag_half_carry = is_carry(registers["hl"], registers[operand_r16], 12)
             registers["hl"] += registers[operand_r16]
             registers["hl"] &= 65535
-        # INC r8
+        # INC r8 (Z0H-)
         elif opcode in [0x04, 0x14, 0x24, 0x34, 0x0c, 0x1c, 0x2c, 0x3c]:
             decoded_instruction = ["INC", operand_stk_r8]
             registers.pc += 1
@@ -312,7 +313,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # DEC r8
+        # DEC r8 (Z1H-)
         elif opcode in [0x05, 0x15, 0x25, 0x35, 0x0d, 0x1d, 0x2d, 0x3d]:
             decoded_instruction = ["DEC", operand_stk_r8]
             registers.pc += 1
@@ -324,12 +325,12 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # LD r8, imm8
+        # LD r8, imm8 (----)
         elif opcode in [0x06, 0x16, 0x26, 0x36, 0x0e, 0x1e, 0x2e, 0x3e]:
             decoded_instruction = ["LD", operand_stk_r8, hex(imm8)]
             registers.pc += 2
             registers[operand_stk_r8] = imm8
-        # RLCA
+        # RLCA (000C)
         elif opcode == 0x07:
             decoded_instruction = ["RLCA"]
             registers.pc += 1
@@ -338,7 +339,7 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers.flag_carry = (registers[operand_r8] & 128) >> 7
             registers["a"] = (registers["a"] << 1) | registers.flag_carry
-        # RRCA
+        # RRCA (000C)
         elif opcode == 0x0f:
             decoded_instruction = ["RRCA"]
             registers.pc += 1
@@ -347,7 +348,7 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers.flag_carry = registers[operand_r8] & 1
             registers["a"] = (registers["a"] >> 1) | (registers.flag_carry << 7)
-        # RLA
+        # RLA (000C)
         elif opcode == 0x17:
             decoded_instruction = ["RLA"]
             registers.pc += 1
@@ -357,7 +358,7 @@ def execute(instruction):
             registers["a"] = (registers["a"] << 1) | registers.flag_carry
             registers.flag_carry = (registers["a"] >> 8)
             registers["a"] &= 255
-        # RRA
+        # RRA (000C)
         elif opcode == 0x1f:
             decoded_instruction = ["RRA"]
             registers.pc += 1
@@ -367,29 +368,50 @@ def execute(instruction):
             pflag = registers.flag_carry
             registers.flag_carry = registers["a"] & 1
             registers["a"] = (registers["a"] >> 1) | (pflag << 7)
-        # DAA TODO
+        # DAA (Z-0C)
         elif opcode == 0x27:
             decoded_instruction = ["DAA"]
             registers.pc += 1
-            print("meow")
+
+            temp = registers["a"]
+            corr = 0
+            corr |= 0x06 if (registers.flag_half_carry != 0) else 0x00
+            corr |= 0x60 if (registers.flag_carry != 0) else 0x00
+
+            if registers.flag_subtraction == 1:
+                temp -= corr
+            else:
+                corr |= 0x06 if (temp & 0x0f) > 0x09 else 0x00
+                corr |= 0x60 if temp > 0x99 else 0x00
+                temp += corr
+
+            if (corr & 0x60) != 0:
+                registers.flag_carry = 1
+
             registers.flag_half_carry = 0
+
+            temp &= 255
+
+            registers["a"] = temp
             if registers["a"] == 0:
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # CPL
+        # CPL (0110)
         elif opcode == 0x2f:
             decoded_instruction = ["CPL"]
             registers.pc += 1
+            registers.flag_half_carry = 1
+            registers.flag_subtraction = 1
             registers["a"] = (~registers["a"]) & 255
-        # SCF
+        # SCF (-001)
         elif opcode == 0x37:
             decoded_instruction = ["SCF"]
             registers.pc += 1
             registers.flag_carry = 1
             registers.flag_subtraction = 0
             registers.flag_half_carry = 0
-        # CCF
+        # CCF (-00C)
         elif opcode == 0x3f:
             decoded_instruction = ["CCF"]
             registers.pc += 1
@@ -399,19 +421,19 @@ def execute(instruction):
                 registers.flag_carry = 1
             registers.flag_subtraction = 0
             registers.flag_half_carry = 0
-        # JR imm8
+        # JR imm8 (----)
         elif opcode == 0x18:
             registers.pc += 2
             if imm8 > 127:
                 imm8 -= 256
             decoded_instruction = ["JR", imm8]
             registers.pc += imm8
-        # JR cond, imm8
+        # JR cond, imm8 (----)
         elif opcode in [0x20, 0x30, 0x28, 0x38]:
             registers.pc += 2
             if imm8 > 127:
                 imm8 -= 256
-            decoded_instruction = ["JR", imm8]
+            decoded_instruction = ["JR", condition, imm8]
             if registers.flag_zero == 0 and condition == "nz":
                 registers.pc += imm8
             elif registers.flag_zero == 1 and condition == "z":
@@ -420,7 +442,7 @@ def execute(instruction):
                 registers.pc += imm8
             elif registers.flag_carry == 1 and condition == "c":
                 registers.pc += imm8
-        # STOP
+        # STOP (----)
         elif opcode == 0x10:
             decoded_instruction = ["STOP"]
             registers.pc += 2
@@ -428,10 +450,10 @@ def execute(instruction):
     # block 1
     elif 0x40 <= opcode <= 0X7f:
         registers.pc += 1
-        # HALT
+        # HALT (----)
         if opcode == 0x76:
             decoded_instruction = ["HALT"]
-        # LD r8, r8
+        # LD r8, r8 (----)
         else:
             decoded_instruction = ["LD", operand_stk_r8, operand_r8]
             registers[operand_stk_r8] = registers[operand_r8]
@@ -440,7 +462,7 @@ def execute(instruction):
     # block 2
     elif 0x80 <= opcode <= 0Xbf:
         registers.pc += 1
-        # ADD a, r8
+        # ADD a, r8 (Z0HC)
         if 0x80 <= opcode <= 0X87:
             decoded_instruction = ["ADD", "a", operand_r8]
             registers.flag_subtraction = 0
@@ -453,7 +475,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # ADC a, r8
+        # ADC a, r8 (Z0HC)
         elif 0x88 <= opcode <= 0X8f:
             decoded_instruction = ["ADC", "a", operand_r8]
             prevflag = registers.flag_carry
@@ -468,7 +490,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # SUB a, r8
+        # SUB a, r8 (Z1HC)
         elif 0x90 <= opcode <= 0X97:
             decoded_instruction = ["SUB", "a", operand_r8]
             registers.flag_subtraction = 1
@@ -481,7 +503,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # SBC a, r8
+        # SBC a, r8 (Z1HC)
         elif 0x98 <= opcode <= 0X9f:
             decoded_instruction = ["SBC", "a", operand_r8]
             registers.flag_subtraction = 1
@@ -495,7 +517,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # AND a, r8
+        # AND a, r8 (Z010)
         elif 0xa0 <= opcode <= 0Xa7:
             decoded_instruction = ["AND", "a", operand_r8]
             registers.flag_subtraction = 0
@@ -507,7 +529,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # XOR a, r8
+        # XOR a, r8 (Z000)
         elif 0xa8 <= opcode <= 0Xaf:
             decoded_instruction = ["XOR", "a", operand_r8]
             registers.flag_subtraction = 0
@@ -519,7 +541,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # OR a, r8
+        # OR a, r8 (Z000)
         elif 0xb0 <= opcode <= 0Xb7:
             decoded_instruction = ["OR", "a", operand_r8]
             registers.flag_subtraction = 0
@@ -531,12 +553,12 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # CP a, r8
+        # CP a, r8 (Z1HC)
         elif 0xb8 <= opcode <= 0Xbf:
             decoded_instruction = ["CP", "a", operand_r8]
             registers.flag_subtraction = 1
-            registers.flag_carry = is_carry(registers["a"], imm8, 8)
-            registers.flag_half_carry = is_carry(registers["a"], imm8, 4)
+            registers.flag_carry = is_carry(registers["a"], registers[operand_r8], 8)
+            registers.flag_half_carry = is_carry(registers["a"], registers[operand_r8], 4)
             if registers["a"] - registers[operand_r8] == 0:
                 registers.flag_zero = 1
             else:
@@ -899,6 +921,8 @@ def execute(instruction):
             registers.pc += 2
             if imm8 > 127:
                 imm8 -= 256
+                registers.flag_subtraction = 1
+
             registers.flag_carry = is_carry(registers["sp"], imm8, 8)
             registers.flag_half_carry = is_carry(registers["sp"], imm8, 4)
             registers.flag_zero = 0
@@ -911,6 +935,7 @@ def execute(instruction):
             registers.pc += 2
             if imm8 > 127:
                 imm8 -= 256
+                registers.flag_subtraction = 1
             registers.flag_carry = is_carry(registers["sp"], imm8, 8)
             registers.flag_half_carry = is_carry(registers["sp"], imm8, 4)
             registers.flag_zero = 0
@@ -986,24 +1011,10 @@ memory = Memory()
 
 if __name__ == "__main__":
     pygame.init()
-    #pygamedisplay = pygame.display.set_mode((256 * size_mul, 256 * size_mul))
     pygamedisplay = pygame.display.set_mode((160 * size_mul, 144 * size_mul))
     pygame.display.set_caption("SillyGB")
 
-    rom = "testsPrivate/05-op rp.gb"
-    rom = "testsPrivate/10-bit ops.gb"
-    rom = "testsPrivate/08-misc instrs.gb"
-    rom = "testsPrivate/11-op a,(hl).gb"
-    rom = "testsPrivate/bgbtest.gb"
     rom = "tests/hello-world.gb"
-    rom = "testsPrivate/03-op sp,hl.gb"
-    rom = "testsPrivate/09-op r,r.gb"
-    rom = "testsPrivate/07-jr,jp,call,ret,rst.gb"
-    rom = "testsPrivate/02-interrupts.gb"
-    rom = "testsPrivate/Tetris.gb"
-    rom = "testsPrivate/04-op r,imm.gb"
-    rom = "testsPrivate/06-ld r,r.gb"
-    rom = "testsPrivate/01-special.gb"
     load_rom(rom)
 
     display = []
@@ -1011,21 +1022,13 @@ if __name__ == "__main__":
         row = [0 for _ in range(256)]
         display.append(row)
 
-    breakpoint = 0xc884
-    found = False
-
     # Execution
     tick = 1
     done = False
-    #for i in range(59999):
     while not done:
-
-        if registers.pc == breakpoint:
-            found = True
-
-        execute(fetch())
-        if found:
-            print(registers)
+        print(hex(registers.pc), execute(fetch()))
+        #execute(fetch())
+        #print(registers)
 
         #input("\n-->")
 
