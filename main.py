@@ -78,6 +78,16 @@ class Registers:
     def debug_compare(self):
         return [self["af"], self["bc"], self["de"], self["hl"], self["sp"], self.pc, self.ime]
 
+class Tick:
+    t_states = 0
+    scan_line_tick = 0
+
+    def tick(self, n):
+        self.t_states += n
+        self.scan_line_tick += n
+        if self.scan_line_tick >= 456:
+            self.scan_line_tick -= 456
+
 class Memory:
     rom = [0 for _ in range(2**15)]
     vram = [0 for _ in range(2**13)]
@@ -241,11 +251,13 @@ def execute(instruction):
         if opcode == 0x00:
             decoded_instruction = ["NOP"]
             registers.pc += 1
+            clocks.tick(4)
         # LD r16, imm16 (----)
         elif opcode in [0x01, 0x11, 0x21, 0x31]:
             decoded_instruction = ["LD", operand_r16, hex(imm16)]
             registers.pc += 3
             registers[operand_r16] = imm16
+            clocks.tick(12)
         # LD [r16mem], a (----)
         elif opcode in [0x02, 0x12, 0x22, 0x32]:
             decoded_instruction = ["LD", ("[" + dest_source_r16mem + "]"), "a"]
@@ -260,6 +272,7 @@ def execute(instruction):
                 registers["hl"] &= 65535
             else:
                 memory[registers[dest_source_r16mem]] = registers["a"]
+            clocks.tick(8)
         # LD a, [r16mem] (----)
         elif opcode in [0x0a, 0x1a, 0x2a, 0x3a]:
             decoded_instruction = ["LD", "a", ("[" + dest_source_r16mem+ "]")]
@@ -274,24 +287,28 @@ def execute(instruction):
                 registers["hl"] &= 65535
             else:
                 registers["a"] = memory[registers[dest_source_r16mem]]
+            clocks.tick(8)
         # LD [imm16], sp (----)
         elif opcode == 0x08:
             decoded_instruction = ["LD", ("[" + str(hex(imm16)) + "]")]
             registers.pc += 3
             memory[imm16] = registers["sp"] & 255
             memory[imm16 + 1] = registers["sp"] >> 8
+            clocks.tick(20)
         # INC r16 (----)
         elif opcode in [0x03, 0x13, 0x23, 0x33]:
             decoded_instruction = ["INC", operand_r16]
             registers.pc += 1
             registers[operand_r16] += 1
             registers[operand_r16] &= 65535
+            clocks.tick(8)
         # DEC r16 (----)
         elif opcode in [0x0b, 0x1b, 0x2b, 0x3b]:
             decoded_instruction = ["DEC", operand_r16]
             registers.pc += 1
             registers[operand_r16] -= 1
             registers[operand_r16] &= 65535
+            clocks.tick(8)
         # ADD hl, r16 (-0HC)
         elif opcode in [0x09, 0x19, 0x29, 0x39]:
             decoded_instruction = ["ADD", "hl", operand_r16]
@@ -301,6 +318,7 @@ def execute(instruction):
             registers.flag_half_carry = is_carry(registers["hl"], registers[operand_r16], 12)
             registers["hl"] += registers[operand_r16]
             registers["hl"] &= 65535
+            clocks.tick(8)
         # INC r8 (Z0H-)
         elif opcode in [0x04, 0x14, 0x24, 0x34, 0x0c, 0x1c, 0x2c, 0x3c]:
             decoded_instruction = ["INC", operand_stk_r8]
@@ -313,6 +331,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if (operand_stk_r8 != "[hl]") else 12)
         # DEC r8 (Z1H-)
         elif opcode in [0x05, 0x15, 0x25, 0x35, 0x0d, 0x1d, 0x2d, 0x3d]:
             decoded_instruction = ["DEC", operand_stk_r8]
@@ -325,11 +344,13 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if (operand_stk_r8 != "[hl]") else 12)
         # LD r8, imm8 (----)
         elif opcode in [0x06, 0x16, 0x26, 0x36, 0x0e, 0x1e, 0x2e, 0x3e]:
             decoded_instruction = ["LD", operand_stk_r8, hex(imm8)]
             registers.pc += 2
             registers[operand_stk_r8] = imm8
+            clocks.tick(8 if (operand_stk_r8 != "[hl]") else 12)
         # RLCA (000C)
         elif opcode == 0x07:
             decoded_instruction = ["RLCA"]
@@ -339,6 +360,7 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers.flag_carry = (registers[operand_r8] & 128) >> 7
             registers["a"] = (registers["a"] << 1) | registers.flag_carry
+            clocks.tick(4)
         # RRCA (000C)
         elif opcode == 0x0f:
             decoded_instruction = ["RRCA"]
@@ -348,6 +370,7 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers.flag_carry = registers[operand_r8] & 1
             registers["a"] = (registers["a"] >> 1) | (registers.flag_carry << 7)
+            clocks.tick(4)
         # RLA (000C)
         elif opcode == 0x17:
             decoded_instruction = ["RLA"]
@@ -358,6 +381,7 @@ def execute(instruction):
             registers["a"] = (registers["a"] << 1) | registers.flag_carry
             registers.flag_carry = (registers["a"] >> 8)
             registers["a"] &= 255
+            clocks.tick(4)
         # RRA (000C)
         elif opcode == 0x1f:
             decoded_instruction = ["RRA"]
@@ -368,6 +392,7 @@ def execute(instruction):
             pflag = registers.flag_carry
             registers.flag_carry = registers["a"] & 1
             registers["a"] = (registers["a"] >> 1) | (pflag << 7)
+            clocks.tick(4)
         # DAA (Z-0C)
         elif opcode == 0x27:
             decoded_instruction = ["DAA"]
@@ -397,6 +422,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4)
         # CPL (0110)
         elif opcode == 0x2f:
             decoded_instruction = ["CPL"]
@@ -404,6 +430,7 @@ def execute(instruction):
             registers.flag_half_carry = 1
             registers.flag_subtraction = 1
             registers["a"] = (~registers["a"]) & 255
+            clocks.tick(4)
         # SCF (-001)
         elif opcode == 0x37:
             decoded_instruction = ["SCF"]
@@ -411,6 +438,7 @@ def execute(instruction):
             registers.flag_carry = 1
             registers.flag_subtraction = 0
             registers.flag_half_carry = 0
+            clocks.tick(4)
         # CCF (-00C)
         elif opcode == 0x3f:
             decoded_instruction = ["CCF"]
@@ -421,6 +449,7 @@ def execute(instruction):
                 registers.flag_carry = 1
             registers.flag_subtraction = 0
             registers.flag_half_carry = 0
+            clocks.tick(4)
         # JR imm8 (----)
         elif opcode == 0x18:
             registers.pc += 2
@@ -428,24 +457,31 @@ def execute(instruction):
                 imm8 -= 256
             decoded_instruction = ["JR", imm8]
             registers.pc += imm8
+            clocks.tick(12)
         # JR cond, imm8 (----)
         elif opcode in [0x20, 0x30, 0x28, 0x38]:
             registers.pc += 2
             if imm8 > 127:
                 imm8 -= 256
             decoded_instruction = ["JR", condition, imm8]
+            clocks.tick(8)
             if registers.flag_zero == 0 and condition == "nz":
                 registers.pc += imm8
+                clocks.tick(4)
             elif registers.flag_zero == 1 and condition == "z":
                 registers.pc += imm8
+                clocks.tick(4)
             elif registers.flag_carry == 0 and condition == "nc":
                 registers.pc += imm8
+                clocks.tick(4)
             elif registers.flag_carry == 1 and condition == "c":
                 registers.pc += imm8
+                clocks.tick(4)
         # STOP (----)
         elif opcode == 0x10:
             decoded_instruction = ["STOP"]
             registers.pc += 2
+            clocks.tick(4)
 
     # block 1
     elif 0x40 <= opcode <= 0X7f:
@@ -453,11 +489,12 @@ def execute(instruction):
         # HALT (----)
         if opcode == 0x76:
             decoded_instruction = ["HALT"]
+            clocks.tick(4)
         # LD r8, r8 (----)
         else:
             decoded_instruction = ["LD", operand_stk_r8, operand_r8]
             registers[operand_stk_r8] = registers[operand_r8]
-
+            clocks.tick(12 if (operand_stk_r8 == "[hl]" or operand_r8 == "[hl]") else 8)
 
     # block 2
     elif 0x80 <= opcode <= 0Xbf:
@@ -475,6 +512,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # ADC a, r8 (Z0HC)
         elif 0x88 <= opcode <= 0X8f:
             decoded_instruction = ["ADC", "a", operand_r8]
@@ -490,6 +528,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # SUB a, r8 (Z1HC)
         elif 0x90 <= opcode <= 0X97:
             decoded_instruction = ["SUB", "a", operand_r8]
@@ -503,6 +542,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # SBC a, r8 (Z1HC)
         elif 0x98 <= opcode <= 0X9f:
             decoded_instruction = ["SBC", "a", operand_r8]
@@ -517,6 +557,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # AND a, r8 (Z010)
         elif 0xa0 <= opcode <= 0Xa7:
             decoded_instruction = ["AND", "a", operand_r8]
@@ -529,6 +570,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # XOR a, r8 (Z000)
         elif 0xa8 <= opcode <= 0Xaf:
             decoded_instruction = ["XOR", "a", operand_r8]
@@ -541,6 +583,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # OR a, r8 (Z000)
         elif 0xb0 <= opcode <= 0Xb7:
             decoded_instruction = ["OR", "a", operand_r8]
@@ -553,6 +596,7 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
         # CP a, r8 (Z1HC)
         elif 0xb8 <= opcode <= 0Xbf:
             decoded_instruction = ["CP", "a", operand_r8]
@@ -563,10 +607,11 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(4 if operand_r8 != "[hl]" else 8)
 
     # block 3
     elif 0xc0 <= opcode <= 0Xff:
-        # ADD a, imm8
+        # ADD a, imm8 (Z0HC)
         if opcode == 0xc6:
             decoded_instruction = ["ADD", "a", imm8]
             registers.pc += 2
@@ -580,7 +625,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # ADC a, imm8
+            clocks.tick(8)
+        # ADC a, imm8 (Z0HC)
         elif opcode == 0xce:
             decoded_instruction = ["ADC", "a", imm8]
             registers.pc += 2
@@ -596,7 +642,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # SUB a, imm8
+            clocks.tick(8)
+        # SUB a, imm8 (Z1HC)
         elif opcode == 0xd6:
             decoded_instruction = ["SUB", "a", imm8]
             registers.pc += 2
@@ -610,7 +657,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # SBC a, imm8
+            clocks.tick(8)
+        # SBC a, imm8 (Z1HZ)
         elif opcode == 0xde:
             decoded_instruction = ["SBC", "a", imm8]
             registers.pc += 2
@@ -625,7 +673,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # AND a, imm8
+            clocks.tick(8)
+        # AND a, imm8 (Z010)
         elif opcode == 0xe6:
             decoded_instruction = ["AND", "a", imm8]
             registers.pc += 2
@@ -638,7 +687,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # XOR a, imm8
+            clocks.tick(8)
+        # XOR a, imm8 (Z000)
         elif opcode == 0xee:
             decoded_instruction = ["XOR", "a", imm8]
             registers.pc += 2
@@ -651,7 +701,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # OR a, imm8
+            clocks.tick(8)
+        # OR a, imm8 (Z000)
         elif opcode == 0xf6:
             decoded_instruction = ["OR", "a", imm8]
             registers.pc += 2
@@ -664,7 +715,8 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
-        # CP a, imm8
+            clocks.tick(8)
+        # CP a, imm8 (Z1HC)
         elif opcode == 0xfe:
             decoded_instruction = ["CP", "a", imm8]
             registers.pc += 2
@@ -675,11 +727,13 @@ def execute(instruction):
                 registers.flag_zero = 1
             else:
                 registers.flag_zero = 0
+            clocks.tick(8)
 
-        # RET cond
+        # RET cond (----)
         elif opcode in [0xc0, 0xd0, 0xc8, 0xd8]:
             decoded_instruction = ["RET", condition]
             registers.pc += 1
+            clocks.tick(8)
             flag = False
             if registers.flag_zero == 0 and condition == "nz":
                 flag = True
@@ -696,7 +750,8 @@ def execute(instruction):
                 registers.pc += (memory[registers["sp"]] << 8)
                 registers["sp"] += 1
                 registers["sp"] &= 65535
-        # RET
+                clocks.tick(12)
+        # RET (----)
         elif opcode == 0xc9:
             decoded_instruction = ["RET"]
             registers.pc += 1
@@ -706,7 +761,8 @@ def execute(instruction):
             registers.pc += (memory[registers["sp"]] << 8)
             registers["sp"] += 1
             registers["sp"] &= 65535
-        # RETI
+            clocks.tick(16)
+        # RETI (----)
         elif opcode == 0xd9:
             decoded_instruction = ["RETI"]
             registers.pc += 1
@@ -717,30 +773,39 @@ def execute(instruction):
             registers.pc += (memory[registers["sp"]] << 8)
             registers["sp"] += 1
             registers["sp"] &= 65535
-        # JP cond, imm16
+            clocks.tick(16)
+        # JP cond, imm16 (----)
         elif opcode in [0xc2, 0xd2, 0xca, 0xda]:
             decoded_instruction = ["JP", condition, hex(imm16)]
             registers.pc += 3
+            clocks.tick(12)
             if registers.flag_zero == 0 and condition == "nz":
                 registers.pc = imm16
+                clocks.tick(4)
             elif registers.flag_zero == 1 and condition == "z":
                 registers.pc = imm16
+                clocks.tick(4)
             elif registers.flag_carry == 0 and condition == "nc":
                 registers.pc = imm16
+                clocks.tick(4)
             elif registers.flag_carry == 1 and condition == "c":
                 registers.pc = imm16
-        # JP imm16
+                clocks.tick(4)
+        # JP imm16 (----)
         elif opcode == 0xc3:
             decoded_instruction = ["JP", hex(imm16)]
             registers.pc = imm16
-        # JP hl
+            clocks.tick(16)
+        # JP hl (----)
         elif opcode == 0xe9:
             decoded_instruction = ["JP", "hl"]
             registers.pc = registers["hl"]
-        # CALL cond, imm16
+            clocks.tick(4)
+        # CALL cond, imm16 (----)
         elif opcode in [0xc4, 0xd4, 0xcc, 0xdc]:
             decoded_instruction = ["CALL", condition, hex(imm16)]
             registers.pc += 3
+            clocks.tick(12)
             flag = False
             if registers.flag_zero == 0 and condition == "nz":
                 flag = True
@@ -758,7 +823,8 @@ def execute(instruction):
                 registers["sp"] &= 65535
                 memory[registers["sp"]] = registers.pc & 255
                 registers.pc = imm16
-        # CALL imm16
+                clocks.tick(12)
+        # CALL imm16 (----)
         elif opcode == 0xcd:
             decoded_instruction = ["CALL", hex(imm16)]
             registers.pc += 3
@@ -769,7 +835,8 @@ def execute(instruction):
             registers["sp"] &= 65535
             memory[registers["sp"]] = registers.pc & 255
             registers.pc = imm16
-        # RST tgt3
+            clocks.tick(24)
+        # RST tgt3 (----)
         elif opcode in [0xc7, 0xd7, 0xe7, 0xf7, 0xcf, 0xdf, 0xef, 0xff]:
             decoded_instruction = ["RST", hex(tgt3)]
             registers.pc += 1
@@ -780,7 +847,8 @@ def execute(instruction):
             registers["sp"] &= 65535
             memory[registers["sp"]] = registers.pc & 255
             registers.pc = tgt3
-        # POP r16stk (load from stack)
+            clocks.tick(16)
+        # POP r16stk (load from stack) (----)
         elif opcode in [0xc1, 0xd1, 0xe1, 0xf1]:
             decoded_instruction = ["POP", operand_stk_r16]
             registers.pc += 1
@@ -790,7 +858,8 @@ def execute(instruction):
             registers[operand_stk_r16] += (memory[registers["sp"]] << 8)
             registers["sp"] += 1
             registers["sp"] &= 65535
-        # PUSH r16stk (save on stack)
+            clocks.tick(12)
+        # PUSH r16stk (save on stack) (----)
         elif opcode in [0xc5, 0xd5, 0xe5, 0xf5]:
             decoded_instruction = ["PUSH", operand_stk_r16]
             registers.pc += 1
@@ -800,10 +869,11 @@ def execute(instruction):
             registers["sp"] -= 1
             registers["sp"] &= 65535
             memory[registers["sp"]] = registers[operand_stk_r16] & 255
+            clocks.tick(16)
         # PREFIX
         elif opcode == 0xcb:
             registers.pc += 2
-            # RLC r8
+            # RLC r8 (Z00C)
             if 0x00 <= instruction[1] <= 0x07:
                 decoded_instruction = ["RLC", operand_r8]
                 registers.flag_half_carry = 0
@@ -814,7 +884,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # RRC r8
+            # RRC r8 (Z00C)
             elif 0x08 <= instruction[1] <= 0x0f:
                 decoded_instruction = ["RRC", operand_r8]
                 registers.flag_half_carry = 0
@@ -825,7 +895,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # RL r8
+            # RL r8 (Z00C)
             elif 0x10 <= instruction[1] <= 0x17:
                 decoded_instruction = ["RL", operand_r8]
                 registers.flag_half_carry = 0
@@ -837,7 +907,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # RR r8
+            # RR r8 (Z00C)
             elif 0x18 <= instruction[1] <= 0x1f:
                 decoded_instruction = ["RR", operand_r8]
                 registers.flag_half_carry = 0
@@ -849,7 +919,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # SLA r8
+            # SLA r8 (Z00C)
             elif 0x20 <= instruction[1] <= 0x27:
                 decoded_instruction = ["SLA", operand_r8]
                 registers.flag_half_carry = 0
@@ -861,7 +931,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # SRA r8
+            # SRA r8 (Z00C)
             elif 0x28 <= instruction[1] <= 0x2f:
                 decoded_instruction = ["SRA", operand_r8]
                 registers.flag_half_carry = 0
@@ -873,7 +943,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # SWAP r8
+            # SWAP r8 (Z000)
             elif 0x30 <= instruction[1] <= 0x37:
                 decoded_instruction = ["SWAP", operand_r8]
                 registers.flag_carry = 0
@@ -886,7 +956,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # SRL r8
+            # SRL r8 (Z00C
             elif 0x38 <= instruction[1] <= 0x3f:
                 decoded_instruction = ["SRL", operand_r8]
                 registers.flag_half_carry = 0
@@ -897,7 +967,7 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # BIT b3, r8
+            # BIT b3, r8 (Z01-)
             elif 0x40 <= instruction[1] <= 0x7f:
                 decoded_instruction = ["BIT", b3, operand_r8]
                 registers.flag_half_carry = 1
@@ -907,15 +977,15 @@ def execute(instruction):
                     registers.flag_zero = 1
                 else:
                     registers.flag_zero = 0
-            # RES, b3, r8
+            # RES, b3, r8 (----)
             elif 0x80 <= instruction[1] <= 0xcf:
                 decoded_instruction = ["RES", b3, operand_r8]
                 registers[operand_r8] &= (255 - (2**b3))
-            # SET b3, r8
+            # SET b3, r8 (----)
             elif 0xd0 <= instruction[1] <= 0xff:
                 decoded_instruction = ["SET", b3, operand_r8]
                 registers[operand_r8] |= (1 << b3)
-        # ADD sp, imm8
+        # ADD sp, imm8 (00HC)
         elif opcode == 0xe8:
             decoded_instruction = ["ADD", "SP", hex(imm8)]
             registers.pc += 2
@@ -929,7 +999,8 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers["sp"] += imm8
             registers["sp"] &= 65535
-        # LD hl, sp + imm8
+            clocks.tick(16)
+        # LD hl, sp + imm8 (00HC)
         elif opcode == 0xf8:
             decoded_instruction = ["LD", "hl", ("sp + " + str(imm8))]
             registers.pc += 2
@@ -942,53 +1013,64 @@ def execute(instruction):
             registers.flag_subtraction = 0
             registers["hl"] = registers["sp"] + imm8
             registers["hl"] &= 65535
-        # LD sp, hl
+            clocks.tick(12)
+        # LD sp, hl (----)
         elif opcode == 0xf9:
             decoded_instruction = ["LD", "sp", "hl"]
             registers.pc += 1
             registers["sp"] = registers["hl"]
-        # DI
+            clocks.tick(8)
+        # DI (----)
         elif opcode == 0xf3:
             decoded_instruction = ["DI"]
             registers.pc += 1
             registers.ime = 0
-        # EI
+            clocks.tick(4)
+        # EI (----)
         elif opcode == 0xfb:
             decoded_instruction = ["EI"]
             registers.pc += 1
             registers.ime_to_be_setted = 1
-        # LDH [imm8], a
+            clocks.tick(4)
+        # LDH [imm8], a (----)
         elif opcode == 0xe0:
             decoded_instruction = ["LDH", ("[" + str(imm8) + "]"), "a"]
             registers.pc += 2
             memory[0xff00 + imm8] = registers["a"]
-        # LDH a, [imm8]
+            clocks.tick(12)
+        # LDH a, [imm8] (----)
         elif opcode == 0xf0:
             decoded_instruction = ["LDH", "a", ("[" + str(imm8) + "]")]
             registers.pc += 2
             registers["a"] = memory[0xff00 + imm8]
-        # LDH [c], a
+            clocks.tick(12)
+        # LDH [c], a (----)
         elif opcode == 0xe2:
             decoded_instruction = ["LDH", "a", "[c]"]
             registers.pc += 1
             memory[0xff00 + registers["c"]] = registers["a"]
-        # LDH a, [c]
+            clocks.tick(8)
+        # LDH a, [c] (----)
         elif opcode == 0xf2:
             decoded_instruction = ["LDH", "[c]", "a"]
             registers.pc += 1
             registers["a"] = memory[0xff00 + registers["c"]]
-        # LD [imm16], a
+            clocks.tick(8)
+        # LD [imm16], a (----)
         elif opcode == 0xea:
             decoded_instruction = ["LD", ("[" + str(imm16) + "]"), "a"]
             registers.pc += 3
             memory[imm16] = registers["a"]
-        # LD a, [imm16]
+            clocks.tick(16)
+        # LD a, [imm16] (----)
         elif opcode == 0xfa:
             decoded_instruction = ["LD", "a", ("[" + str(imm16) + "]")]
             registers.pc += 3
             registers["a"] = memory[imm16]
+            clocks.tick(16)
         else:
             decoded_instruction = ["NOT AN INSTRUCTION"]
+
 
 
         if opcode not in [0xfb, 0xd9]:
@@ -1006,8 +1088,11 @@ r16stk = ["bc", "de", "hl", "af"]
 r16mem = ["bc", "de", "hl+", "hl-"]
 cond = ["nz", "z", "nc", "c"]
 
+
 size_mul = 3
 memory = Memory()
+
+clocks = Tick()
 
 if __name__ == "__main__":
     pygame.init()
@@ -1027,6 +1112,7 @@ if __name__ == "__main__":
     done = False
     while not done:
         print(hex(registers.pc), execute(fetch()))
+        print(clocks.t_states)
         #execute(fetch())
         #print(registers)
 
