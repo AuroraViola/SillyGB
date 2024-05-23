@@ -160,6 +160,8 @@ class Tick:
         if self.scan_line_tick >= 456:
             self.scan_line_tick -= 456
             memory[0xff44] += 1
+            if memory[0xff44] == 143:
+                memory[0xff00] |= 1
             if memory[0xff44] > 153:
                 memory[0xff44] = 0
 
@@ -183,6 +185,8 @@ def is_carry(val1, val2, bits, subtraction):
         return ((val1 & carry_size) + (val2 & carry_size)) >> (bits)
 
 def execute():
+    if registers.ime == 1:
+        run_interrupt()
     ticks = execute_instruction()
     post_execution(ticks)
 
@@ -304,6 +308,7 @@ def execute_instruction():
             registers.pc += 1
             registers.flagC = (registers["a"] & 128) >> 7
             registers["a"] = (registers["a"] << 1) | registers.flagC
+            registers["a"] &= 255
             registers.flagN = 0
             registers.flagH = 0
             registers.flagZ = 0
@@ -444,8 +449,8 @@ def execute_instruction():
         elif 0x88 <= opcode <= 0x8f:
             registers.pc += 1
             prevC = registers.flagC
-            registers.flagH = is_carry(registers["a"], registers[operand_r8] + prevC, 4, 0)
-            registers.flagC = is_carry(registers["a"], registers[operand_r8] + prevC, 8, 0)
+            registers.flagH = int((((registers["a"] & 15) + (registers[operand_r8] & 15) + registers.flagC) > 15))
+            registers.flagC = int((registers["a"] + registers[operand_r8] + prevC) > 255)
             registers["a"] += registers[operand_r8] + prevC
             registers["a"] &= 255
             registers.flagN = 0
@@ -465,8 +470,8 @@ def execute_instruction():
         elif 0x98 <= opcode <= 0x9f:
             registers.pc += 1
             prevC = registers.flagC
-            registers.flagH = is_carry(registers["a"], registers[operand_r8] + prevC, 4, 1)
-            registers.flagC = is_carry(registers["a"], registers[operand_r8] + prevC, 8, 1)
+            registers.flagH = int((((registers["a"] & 15) - (registers[operand_r8] & 15) - registers.flagC) < 0))
+            registers.flagC = int((registers["a"] - registers[operand_r8] - prevC) < 0)
             registers["a"] -= (registers[operand_r8] + prevC)
             registers["a"] &= 255
             registers.flagN = 1
@@ -528,9 +533,9 @@ def execute_instruction():
         elif opcode == 0xce:
             registers.pc += 2
             prevC = registers.flagC
-            registers.flagH = is_carry(registers["a"], imm8 + prevC, 4, 0)
-            registers.flagC = is_carry(registers["a"], imm8 + prevC, 8, 0)
-            registers["a"] += imm8 + prevC
+            registers.flagH = int((((registers["a"] & 15) + (imm8 & 15) + registers.flagC) > 15))
+            registers.flagC = int((registers["a"] + imm8 + prevC) > 255)
+            registers["a"] += (imm8 + prevC)
             registers["a"] &= 255
             registers.flagN = 0
             registers.flagZ = 0 if registers["a"] != 0 else 1
@@ -549,8 +554,8 @@ def execute_instruction():
         elif opcode == 0xde:
             registers.pc += 2
             prevC = registers.flagC
-            registers.flagH = is_carry(registers["a"], imm8 + prevC, 4, 1)
-            registers.flagC = is_carry(registers["a"], imm8 + prevC, 8, 1)
+            registers.flagH = int((((registers["a"] & 15) - (imm8 & 15) - registers.flagC) < 0))
+            registers.flagC = int((registers["a"] - imm8 - prevC) < 0)
             registers["a"] -= imm8 + prevC
             registers["a"] &= 255
             registers.flagN = 1
@@ -735,6 +740,7 @@ def execute_instruction():
                 registers.pc += 2
                 registers.flagC = (registers[operand_r8] & 128) >> 7
                 registers[operand_r8] = (registers[operand_r8] << 1) | registers.flagC
+                registers[operand_r8] &= 255
                 registers.flagN = 0
                 registers.flagH = 0
                 registers.flagZ = 0 if registers[operand_r8] != 0 else 1
@@ -784,7 +790,7 @@ def execute_instruction():
                 registers.pc += 2
                 registers.flagC = registers[operand_r8] & 1
                 registers[operand_r8] = (registers[operand_r8] >> 1)
-                registers[operand_r8] |= (registers[operand_r8] & 128) << 1
+                registers[operand_r8] |= (registers[operand_r8] & 64) << 1
                 registers.flagN = 0
                 registers.flagH = 0
                 registers.flagZ = 0 if registers[operand_r8] != 0 else 1
@@ -815,30 +821,28 @@ def execute_instruction():
                 iszero = (registers[operand_r8] >> b3) & 1
                 registers.flagZ = 1 if iszero == 0 else 0
                 registers.flagN = 0
-                registers.flagH = 0
+                registers.flagH = 1
                 return 8 if operand_r8 != "[hl]" else 16
             # RES, b3, r8 (----)
-            elif 0x80 <= imm8 <= 0xcf:
+            elif 0x80 <= imm8 <= 0xbf:
                 registers.pc += 2
                 registers[operand_r8] &= (255 - (2**b3))
                 return 8 if operand_r8 != "[hl]" else 16
             # SET b3, r8 (----)
-            elif 0xd0 <= imm8 <= 0xff:
+            elif 0xc0 <= imm8 <= 0xff:
                 registers.pc += 2
                 registers[operand_r8] |= (1 << b3)
                 return 8 if operand_r8 != "[hl]" else 16
         # ADD sp, imm8 (00HC)
         elif opcode == 0xe8:
             registers.pc += 2
-            sub_bit = 0
             if imm8 > 127:
                 imm8 -= 256
-                sub_bit = 1
 
             registers.flagZ = 0
             registers.flagN = 0
-            registers.flagH = is_carry(registers["sp"], imm8, 4, sub_bit)
-            registers.flagC = is_carry(registers["sp"], imm8, 8, sub_bit)
+            registers.flagH = is_carry(registers["sp"], imm8, 4, 0)
+            registers.flagC = is_carry(registers["sp"], imm8, 8, 0)
 
             registers["sp"] += imm8
             registers["sp"] &= 65535
@@ -846,17 +850,16 @@ def execute_instruction():
         # LD hl, sp + imm8 (00HC)
         elif opcode == 0xf8:
             registers.pc += 2
-            sub_bit = 0
             if imm8 > 127:
                 imm8 -= 256
-                sub_bit = 1
 
             registers.flagZ = 0
             registers.flagN = 0
-            registers.flagH = is_carry(registers["sp"], imm8, 4, sub_bit)
-            registers.flagC = is_carry(registers["sp"], imm8, 8, sub_bit)
+            registers.flagH = is_carry(registers["sp"], imm8, 4, 0)
+            registers.flagC = is_carry(registers["sp"], imm8, 8, 0)
+
             registers["hl"] = registers["sp"] + imm8
-            registers["sp"] &= 65535
+            registers["hl"] &= 65535
             return 12
         # LD sp, hl (----)
         elif opcode == 0xf9:
@@ -868,9 +871,10 @@ def execute_instruction():
             registers.pc += 1
             registers.ime = 0
             return 4
-        # EI (----) TODO
+        # EI (----)
         elif opcode == 0xfb:
             registers.pc += 1
+            registers.ime = 1
             return 4
         # LDH [imm8], a (----)
         elif opcode == 0xe0:
@@ -885,12 +889,12 @@ def execute_instruction():
         # LDH [c], a (----)
         elif opcode == 0xe2:
             registers.pc += 1
-            memory[0xff + registers["c"]] = registers["a"]
+            memory[0xff00 + registers["c"]] = registers["a"]
             return 8
         # LDH a, [c] (----)
         elif opcode == 0xf2:
             registers.pc += 1
-            registers["a"] = memory[0xff + registers["c"]]
+            registers["a"] = memory[0xff00 + registers["c"]]
             return 8
         # LD [imm16], a (----)
         elif opcode == 0xea:
@@ -904,6 +908,79 @@ def execute_instruction():
             return 16
         else:
             pass
+
+def run_interrupt():
+    # vblank interrupt
+    if (memory[0xffff] & 1) == 1 and (memory[0xff0f] & 1) == 1:
+        memory[0xff0f] &= 254
+        registers.ime = 0
+        vblank_interrupt()
+    # LCD interrupt
+    elif (memory[0xffff] & 0b10) == 2 and (memory[0xff0f] & 0b10) == 2:
+        memory[0xff0f] &= 0b11111101
+        registers.ime = 0
+        lcd_interrupt()
+    # Timer interrupt
+    elif (memory[0xffff] & 0b100) == 4 and (memory[0xff0f] & 0b100) == 4:
+        memory[0xff0f] &= 0b11111011
+        registers.ime = 0
+        timer_interrupt()
+    # Serial interrupt
+    elif (memory[0xffff] & 0b1000) == 8 and (memory[0xff0f] & 0b1000) == 8:
+        memory[0xff0f] &= 0b11110111
+        registers.ime = 0
+        serial_interrupt()
+    # Joypad interrupt
+    elif (memory[0xffff] & 0b10000) == 17 and (memory[0xff0f] & 0b10000) == 16:
+        memory[0xff0f] &= 0b11101111
+        registers.ime = 0
+        joypad_interrupt()
+
+def vblank_interrupt():
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc >> 8
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc & 255
+    registers.pc = 0x40
+
+def lcd_interrupt():
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc >> 8
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc & 255
+    registers.pc = 0x48
+
+def timer_interrupt():
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc >> 8
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc & 255
+    registers.pc = 0x50
+
+def serial_interrupt():
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc >> 8
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc & 255
+    registers.pc = 0x58
+
+def joypad_interrupt():
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc >> 8
+    registers["sp"] -= 1
+    registers["sp"] &= 65535
+    memory[registers["sp"]] = registers.pc & 255
+    registers.pc = 0x60
+    pass
 
 def post_execution(ticks : int):
     clock.add_tick(ticks)
