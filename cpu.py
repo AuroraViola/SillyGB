@@ -153,17 +153,35 @@ class Memory:
 class Tick:
     t_states = 0
     scan_line_tick = 0
+    tima_counter = 0
+    divider_register = 0
 
     def add_tick(self, n):
         self.t_states += n
+
         self.scan_line_tick += n
         if self.scan_line_tick >= 456:
             self.scan_line_tick -= 456
             memory[0xff44] += 1
-            if memory[0xff44] == 143:
+            if memory[0xff44] == 144:
                 memory[0xff00] |= 1
             if memory[0xff44] > 153:
                 memory[0xff44] = 0
+
+        if memory[0xff07] & 1 == 1:
+            self.tima_counter += n
+            if self.tima_counter > clock_select[memory[0xff07] & 3]:
+                self.tima_counter = 0
+                memory[0xff05] += 1
+                if memory[0xff05] == 256:
+                    memory[0xff05] = memory[0xff06]
+                    memory[0xff0f] |= 4
+
+        self.divider_register += n
+        if self.divider_register >= 16384:
+            self.divider_register -= 16384
+            memory[0xff04] += 1
+            memory[0xff04] &= 255
 
 registers = Registers()
 memory = Memory()
@@ -174,6 +192,8 @@ r16 = ["bc", "de", "hl", "sp"]
 r16stk = ["bc", "de", "hl", "af"]
 r16mem = ["bc", "de", "hl+", "hl-"]
 cond = ["nz", "z", "nc", "c"]
+
+clock_select = [1024, 16, 64, 256]
 
 def is_carry(val1, val2, bits, subtraction):
     carry_size = (2 ** bits) - 1
@@ -874,7 +894,8 @@ def execute_instruction():
         # EI (----)
         elif opcode == 0xfb:
             registers.pc += 1
-            registers.ime = 1
+            if registers.ime == 0:
+                registers.ime_to_be_setted += 1
             return 4
         # LDH [imm8], a (----)
         elif opcode == 0xe0:
@@ -912,7 +933,7 @@ def execute_instruction():
 def run_interrupt():
     # vblank interrupt
     if (memory[0xffff] & 1) == 1 and (memory[0xff0f] & 1) == 1:
-        memory[0xff0f] &= 254
+        memory[0xff0f] &= 0b11111110
         registers.ime = 0
         vblank_interrupt()
     # LCD interrupt
@@ -922,6 +943,7 @@ def run_interrupt():
         lcd_interrupt()
     # Timer interrupt
     elif (memory[0xffff] & 0b100) == 4 and (memory[0xff0f] & 0b100) == 4:
+        print("tint")
         memory[0xff0f] &= 0b11111011
         registers.ime = 0
         timer_interrupt()
@@ -937,6 +959,7 @@ def run_interrupt():
         joypad_interrupt()
 
 def vblank_interrupt():
+    print("vblano")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -980,7 +1003,11 @@ def joypad_interrupt():
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc & 255
     registers.pc = 0x60
-    pass
 
 def post_execution(ticks : int):
     clock.add_tick(ticks)
+    if registers.ime_to_be_setted == 1:
+        registers.ime_to_be_setted = 2
+    elif registers.ime_to_be_setted == 2:
+        registers.ime_to_be_setted = 0
+        registers.ime = 1
