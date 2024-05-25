@@ -1,3 +1,5 @@
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import ppu
 import cpu
@@ -39,6 +41,7 @@ if __name__ == "__main__":
     display = ppu.Display()
 
     tick = 1
+    cpu.memory[0xff44] = 0x90
 
     done = False
     while not done:
@@ -52,7 +55,6 @@ if __name__ == "__main__":
         if tick % 18240 == 0:
             display.load_background(cpu.memory)
             visualizeGrid(display.background)
-            pygame.display.flip()
         tick += 1
 
     pygame.quit()

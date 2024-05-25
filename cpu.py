@@ -152,7 +152,7 @@ class Memory:
 
 class Tick:
     t_states = 0
-    scan_line_tick = 0
+    scan_line_tick = 188
     tima_counter = 0
     divider_register = 0
 
@@ -165,7 +165,8 @@ class Tick:
             memory[0xff44] += 1
             if memory[0xff44] == 144:
                 memory[0xff00] |= 1
-            if memory[0xff44] > 153:
+            if memory[0xff44] >= 153:
+                self.scan_line_tick -= 456
                 memory[0xff44] = 0
 
         if memory[0xff07] & 1 == 1:
@@ -842,7 +843,7 @@ def execute_instruction():
                 registers.flagZ = 1 if iszero == 0 else 0
                 registers.flagN = 0
                 registers.flagH = 1
-                return 8 if operand_r8 != "[hl]" else 16
+                return 8 if operand_r8 != "[hl]" else 12
             # RES, b3, r8 (----)
             elif 0x80 <= imm8 <= 0xbf:
                 registers.pc += 2
@@ -901,12 +902,12 @@ def execute_instruction():
         elif opcode == 0xe0:
             registers.pc += 2
             memory[0xff00 + imm8] = registers["a"]
-            return 8
+            return 12
         # LDH a, [imm8] (----)
         elif opcode == 0xf0:
             registers.pc += 2
             registers["a"] = memory[0xff00 + imm8]
-            return 8
+            return 12
         # LDH [c], a (----)
         elif opcode == 0xe2:
             registers.pc += 1
@@ -943,7 +944,6 @@ def run_interrupt():
         lcd_interrupt()
     # Timer interrupt
     elif (memory[0xffff] & 0b100) == 4 and (memory[0xff0f] & 0b100) == 4:
-        print("tint")
         memory[0xff0f] &= 0b11111011
         registers.ime = 0
         timer_interrupt()
@@ -959,7 +959,7 @@ def run_interrupt():
         joypad_interrupt()
 
 def vblank_interrupt():
-    print("vblano")
+    print("vblank interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -969,6 +969,7 @@ def vblank_interrupt():
     registers.pc = 0x40
 
 def lcd_interrupt():
+    print("lcd interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -978,6 +979,7 @@ def lcd_interrupt():
     registers.pc = 0x48
 
 def timer_interrupt():
+    print("timer interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -987,6 +989,7 @@ def timer_interrupt():
     registers.pc = 0x50
 
 def serial_interrupt():
+    print("serial interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -996,6 +999,7 @@ def serial_interrupt():
     registers.pc = 0x58
 
 def joypad_interrupt():
+    print("joypad interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
