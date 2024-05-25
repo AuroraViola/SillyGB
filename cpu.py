@@ -188,7 +188,7 @@ class Tick:
 registers = Registers()
 
 # Set this variable to True for running the tests
-debug = True
+debug = False
 if debug:
     memory = debugcpu.Memory()
 else:
