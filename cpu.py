@@ -187,10 +187,13 @@ class Tick:
 
 registers = Registers()
 
-# Comment this if you want to use debug ram instead
-memory = Memory()
-# Decomment this if you want to use debug ram instead
-#memory = debugcpu.Memory()
+# Set this variable to True for running the tests
+debug = True
+if debug:
+    memory = debugcpu.Memory()
+else:
+    memory = Memory()
+
 clock = Tick()
 
 r8 = ["b", "c", "d", "e", "h", "l", "[hl]", "a"]

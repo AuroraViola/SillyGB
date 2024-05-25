@@ -25,6 +25,8 @@ def set_ram_values(memory, ram_values : list) -> None:
 
 
 if __name__ == "__main__":
+    print("BEFORE RUNNING THE TEST REMEMBER TO CHANGE THE debug VARIABLE IN cpu.py")
+
     expected_reg = debugcpu.Registers()
     expected_ram = debugcpu.Memory()
 

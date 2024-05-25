@@ -40,9 +40,9 @@ if __name__ == "__main__":
 
     display = ppu.Display()
 
-    tick = 1
     cpu.memory[0xff44] = 0x90
 
+    tick = 1
     done = False
     while not done:
         cpu.execute()
