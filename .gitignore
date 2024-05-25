@@ -2,3 +2,5 @@ __pycache__
 testsPrivate
 .idea
 .venv
+CompareSB.py
+CompareText.py

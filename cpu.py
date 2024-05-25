@@ -1,3 +1,4 @@
+import debugcpu
 import prettyhex
 
 class Registers:
@@ -74,7 +75,7 @@ class Registers:
         return rstring
 
     def debug_compare(self):
-        return [self["af"], self["bc"], self["de"], self["hl"], self["sp"], self.pc, self.ime]
+        return [self["af"], self["bc"], self["de"], self["hl"], self["sp"], self.pc]
 
 class Memory:
     rom = [0 for _ in range(2**15)]
@@ -185,7 +186,11 @@ class Tick:
             memory[0xff04] &= 255
 
 registers = Registers()
-memory = Memory()
+
+# Comment this if you want to use debug ram instead
+#memory = Memory()
+# Decomment this if you want to use debug ram instead
+memory = debugcpu.Memory()
 clock = Tick()
 
 r8 = ["b", "c", "d", "e", "h", "l", "[hl]", "a"]
@@ -196,6 +201,7 @@ cond = ["nz", "z", "nc", "c"]
 
 clock_select = [1024, 16, 64, 256]
 
+
 def is_carry(val1, val2, bits, subtraction):
     carry_size = (2 ** bits) - 1
     if subtraction:
@@ -204,6 +210,7 @@ def is_carry(val1, val2, bits, subtraction):
         return 0
     else:
         return ((val1 & carry_size) + (val2 & carry_size)) >> (bits)
+
 
 def execute():
     if registers.ime == 1:
