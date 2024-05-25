@@ -35,7 +35,7 @@ if __name__ == "__main__":
     pygamedisplay = pygame.display.set_mode((160 * size_mul, 144 * size_mul))
     pygame.display.set_caption("SillyGB")
 
-    cartridge = cartridge.Cartridge("tests/hello-world.gb")
+    cartridge = cartridge.Cartridge("Roms/SillyTest.gb")
     cartridge.load_rom(cpu.memory)
 
     display = ppu.Display()
