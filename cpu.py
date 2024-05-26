@@ -3,13 +3,13 @@ import prettyhex
 
 class Registers:
     r = {
-        "a": 0x01, # 01
+        "a": 0x01,
         "b": 0,
-        "c": 0x13, # 13
+        "c": 0x13,
         "d": 0,
-        "e": 0xd8, # d8
-        "h": 0x01, # 01
-        "l": 0x4d, # 4d
+        "e": 0xd8,
+        "h": 0x01,
+        "l": 0x4d,
         "sp": 0xfffe
     }
     pc = 0x0100
@@ -109,11 +109,8 @@ class Memory:
         # Not usable
         elif 0xfea0 <= key <= 0xfeff:
             return 255
-        # Joypad
-        elif key == 0xff00:
-            return 0xff
         # I/O Registers
-        elif 0xff01 <= key <= 0xff7f:
+        elif 0xff00 <= key <= 0xff7f:
             return self.io_registers[key - 0xff00]
         # High RAM
         elif 0xff80 <= key <= 0xfffe:
@@ -950,26 +947,31 @@ def run_interrupt():
         memory[0xff0f] &= 0b11111110
         registers.ime = 0
         vblank_interrupt()
+        clock.add_tick(20)
     # LCD interrupt
     elif (memory[0xffff] & 0b10) == 2 and (memory[0xff0f] & 0b10) == 2:
         memory[0xff0f] &= 0b11111101
         registers.ime = 0
         lcd_interrupt()
+        clock.add_tick(20)
     # Timer interrupt
     elif (memory[0xffff] & 0b100) == 4 and (memory[0xff0f] & 0b100) == 4:
         memory[0xff0f] &= 0b11111011
         registers.ime = 0
         timer_interrupt()
+        clock.add_tick(20)
     # Serial interrupt
     elif (memory[0xffff] & 0b1000) == 8 and (memory[0xff0f] & 0b1000) == 8:
         memory[0xff0f] &= 0b11110111
         registers.ime = 0
         serial_interrupt()
+        clock.add_tick(20)
     # Joypad interrupt
     elif (memory[0xffff] & 0b10000) == 17 and (memory[0xff0f] & 0b10000) == 16:
         memory[0xff0f] &= 0b11101111
         registers.ime = 0
         joypad_interrupt()
+        clock.add_tick(20)
 
 def vblank_interrupt():
     registers["sp"] -= 1
