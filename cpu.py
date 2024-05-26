@@ -78,78 +78,24 @@ class Registers:
         return [self["af"], self["bc"], self["de"], self["hl"], self["sp"], self.pc]
 
 class Memory:
-    rom = [0 for _ in range(2**15)]
-    vram = [0 for _ in range(2**13)]
-    xram = [0 for _ in range(2**13)]
-    wram = [0 for _ in range(2**13)]
-    oam = [0 for _ in range(160)]
-    io_registers = [0 for _ in range(2**7)]
-    hram = [0 for _ in range((2**7)-1)]
-    interrupt = 0
+    mem = [0 for _ in range(2**16)]
+
+    def __init__(self):
+        for i in range(0xfea0, 0xff00):
+            self.mem[i] = 255
 
     def __getitem__(self, key):
-        # ROM
-        if 0x0000 <= key <= 0x7fff:
-            return self.rom[key]
-        # VRAM
-        elif 0x8000 <= key <= 0x9fff:
-            return self.vram[key - 0x8000]
-        # External RAM
-        elif 0xa000 <= key <= 0xbfff:
-            return self.xram[key - 0xa000]
-        # Working RAM
-        elif 0xc000 <= key <= 0xdfff:
-            return self.wram[key - 0xc000]
-        # Echo RAM
-        elif 0xe000 <= key <= 0xfdff:
-            return self.wram[key - 0xe000]
-        # Object Attribution Memory
-        elif 0xfe00 <= key <= 0xfe9f:
-            return self.oam[key - 0xfe00]
-        # Not usable
-        elif 0xfea0 <= key <= 0xfeff:
-            return 255
-        # I/O Registers
-        elif 0xff00 <= key <= 0xff7f:
-            return self.io_registers[key - 0xff00]
-        # High RAM
-        elif 0xff80 <= key <= 0xfffe:
-            return self.hram[key - 0xff80]
-        # Interrupt
-        elif key == 0xffff:
-            return self.interrupt
+        if 0xe000 <= key <= 0xfdff:
+            return self.mem[key - 0x2000]
+        return self.mem[key]
 
     def __setitem__(self, key, value):
-        # ROM
-        if 0x0000 <= key <= 0x7fff:
+        if (0x0000 <= key <= 0x7fff) or (0xfea0 <= key <= 0xfeff):
             pass
-        # VRAM
-        elif 0x8000 <= key <= 0x9fff:
-            self.vram[key - 0x8000] = value
-        # External RAM
-        elif 0xa000 <= key <= 0xbfff:
-            self.xram[key - 0xa000] = value
-        # Working RAM
-        elif 0xc000 <= key <= 0xdfff:
-            self.wram[key - 0xc000] = value
-        # Echo RAM
         elif 0xe000 <= key <= 0xfdff:
-            self.wram[key - 0xe000] = value
-        # Object Attribution Memory
-        elif 0xfe00 <= key <= 0xfe9f:
-            self.oam[key - 0xfe00] = value
-        # Not usable
-        elif 0xfea0 <= key <= 0xfeff:
-            pass
-        # I/O Registers
-        elif 0xff00 <= key <= 0xff7f:
-            self.io_registers[key - 0xff00] = value
-        # High RAM
-        elif 0xff80 <= key <= 0xfffe:
-            self.hram[key - 0xff80] = value
-        # Interrupt
-        elif key == 0xffff:
-            self.interrupt = value
+            self.mem[key - 0x2000] = value
+        else:
+            self.mem[key] = value
 
 class Tick:
     t_states = 0
@@ -201,6 +147,7 @@ r16 = ["bc", "de", "hl", "sp"]
 r16stk = ["bc", "de", "hl", "af"]
 r16mem = ["bc", "de", "hl+", "hl-"]
 cond = ["nz", "z", "nc", "c"]
+rst_vec = [0x00, 0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38]
 
 clock_select = [1024, 16, 64, 256]
 
@@ -241,7 +188,6 @@ def execute_instruction():
 
     b3 = (imm8 & 0b00111000) >> 3
 
-    rst_vec = [0x00, 0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38]
     tgt3 = rst_vec[(opcode & 0b00111000) >> 3]
 
     # block 0
