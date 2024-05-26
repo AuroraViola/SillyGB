@@ -967,7 +967,7 @@ def run_interrupt():
         serial_interrupt()
         clock.add_tick(20)
     # Joypad interrupt
-    elif (memory[0xffff] & 0b10000) == 17 and (memory[0xff0f] & 0b10000) == 16:
+    elif (memory[0xffff] & 0b10000) == 16 and (memory[0xff0f] & 0b10000) == 16:
         memory[0xff0f] &= 0b11101111
         registers.ime = 0
         joypad_interrupt()

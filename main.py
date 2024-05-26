@@ -4,6 +4,7 @@ import pygame
 import ppu
 import cpu
 import cartridge
+import joypad
 
 
 def createSquare(x, y, color):
@@ -31,26 +32,43 @@ def visualizeGrid(display):
 size_mul = 3
 
 if __name__ == "__main__":
+    # Initialize display
     pygame.init()
     pygamedisplay = pygame.display.set_mode((160 * size_mul, 144 * size_mul))
     pygame.display.set_caption("SillyGB")
+    display = ppu.Display()
+    cpu.memory[0xff44] = 0x90
 
-    cartridge = cartridge.Cartridge("Roms/SillyTest.gb")
+    # Load cartridge to memory
+    cartridge = cartridge.Cartridge("Roms/Private/SillyTest.gb")
     cartridge.load_rom(cpu.memory)
 
-    display = ppu.Display()
-
-    cpu.memory[0xff44] = 0x90
+    # Initialize joypad
+    p1 = joypad.Joypad()
+    cpu.memory[0xff00] = 0xff
 
     tick = 1
     done = False
     while not done:
-        cpu.execute()
-
         eventlist = pygame.event.get()
         for ev in eventlist:
             if ev.type == pygame.QUIT:
                 done = True
+            if ev.type == pygame.KEYDOWN:
+                cpu.memory[0xff0f] |= 16
+                for button in p1.buttonskeys:
+                    if ev.key == p1.buttonskeys[button]:
+                        cpu.memory[0xff0f] |= 16
+                        p1.buttons[button] = 1
+            if ev.type == pygame.KEYUP:
+                for button in p1.buttonskeys:
+                    if ev.key == p1.buttonskeys[button]:
+                        p1.buttons[button] = 0
+
+        prev_btn = cpu.memory[0xff00]
+        cpu.memory[0xff00] = p1.encode_buttons(cpu.memory[0xff00])
+
+        cpu.execute()
 
         if tick % 18240 == 0:
             display.load_background(cpu.memory)
