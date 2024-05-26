@@ -109,8 +109,11 @@ class Memory:
         # Not usable
         elif 0xfea0 <= key <= 0xfeff:
             return 255
+        # Joypad
+        elif key == 0xff00:
+            return 0xff
         # I/O Registers
-        elif 0xff00 <= key <= 0xff7f:
+        elif 0xff01 <= key <= 0xff7f:
             return self.io_registers[key - 0xff00]
         # High RAM
         elif 0xff80 <= key <= 0xfffe:
@@ -165,7 +168,7 @@ class Tick:
             self.scan_line_tick -= 456
             memory[0xff44] += 1
             if memory[0xff44] == 144:
-                memory[0xff00] |= 1
+                memory[0xff0f] |= 1
             if memory[0xff44] >= 153:
                 self.scan_line_tick -= 456
                 memory[0xff44] = 0
@@ -969,7 +972,6 @@ def run_interrupt():
         joypad_interrupt()
 
 def vblank_interrupt():
-    print("vblank interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
