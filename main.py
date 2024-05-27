@@ -14,7 +14,7 @@ if __name__ == "__main__":
     screen = ppu.Display(4, cpu.memory)
 
     # Load cartridge to memory
-    cartridge = cartridge.Cartridge("Roms/Private/tellinglys.gb")
+    cartridge = cartridge.Cartridge("Roms/Private/DrMario.gb")
     cartridge.load_rom(cpu.memory)
 
     # Initialize joypad
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     done = False
     while not done:
         if tick % 18240 == 0:
-            #screen.visualize_display(cpu.memory)
+            screen.visualize_display(cpu.memory)
             eventlist = pygame.event.get()
             for ev in eventlist:
                 if ev.type == pygame.QUIT:
@@ -39,9 +39,6 @@ if __name__ == "__main__":
                     for button in p1.buttonskeys:
                         if ev.key == p1.buttonskeys[button]:
                             p1.buttons[button] = 0
-            print(cpu.clock.t_states)
-            cpu.memory[0xff00] = p1.encode_buttons(cpu.memory[0xff00])
-            cpu.memory[0xff00] = p1.encode_buttons(cpu.memory[0xff00])
 
         cpu.memory[0xff00] = p1.encode_buttons(cpu.memory[0xff00])
 

@@ -129,6 +129,7 @@ class Display:
             priority = attributes >> 7
             yflip = (attributes >> 6) & 1
             xflip = (attributes >> 5) & 1
+            print(t_index)
             self.sprites.append((ypos, xpos, t_index, priority, yflip, xflip))
             i += 4
 
@@ -142,3 +143,17 @@ class Display:
         self.reset_background()
         if memory[0xff40] & 1 != 0:
             self.load_background(memory)
+        if memory[0xff40] & 2 != 0:
+            self.load_sprite(memory)
+
+        if memory[0xff40] & 128 != 0:
+            for y in range(144):
+                for x in range(160):
+                    self.display[y][x] = self.background[(y + memory[0xff42]) & 255][(x + memory[0xff43]) & 255]
+
+            if memory[0xff40] & 2 != 0:
+                for sprite in self.sprites:
+                    tile = self.decode_tile(memory, ((sprite[2] << 4) + 0x8000))
+                    for y in range(8):
+                        for x in range(8):
+                            self.display[sprite[0] + y][sprite[1] + x] = tile[y][x]
