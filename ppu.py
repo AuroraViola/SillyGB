@@ -8,6 +8,8 @@ class Display:
     window = numpy.zeros((256, 256), dtype=numpy.uint8)
     palette = numpy.array([[185, 237, 186], [118, 196, 123], [49, 105, 64], [10, 38, 16]])
     bg_palette = [0, 1, 2, 3]
+    obp0 = [0, 1, 2, 3]
+    obp1 = [0, 1, 2, 3]
 
     def __init__(self, scaling_fact, memory):
         pygame.init()
@@ -116,18 +118,26 @@ class Display:
                     self.display[y, x] = self.background[bgy, (x + scx) & 255]
             if cpu.memory[0xff40] & 2 != 0:
                 for sprites in self.load_sprites():
-                    sprite_tile = numpy.array(self.decode_tile(0x8000 | (sprites[2] << 4)))
-                    # y flip
-                    if (sprites[3] >> 6) & 1 != 0:
-                        sprite_tile = numpy.flipud(sprite_tile)
-                    # x flip
-                    if (sprites[3] >> 5) & 1 != 0:
-                        sprite_tile = numpy.fliplr(sprite_tile)
-
                     if 16 <= sprites[0] <= 159 and 8 <= sprites[1] <= 159:
+                        obp0 = cpu.memory[0xff48]
+                        obp1 = cpu.memory[0xff49]
+                        sprite_tile = numpy.array(self.decode_tile(0x8000 | (sprites[2] << 4)))
+                        # Y flip
+                        if (sprites[3] >> 6) & 1 != 0:
+                            sprite_tile = numpy.flipud(sprite_tile)
+                        # X flip
+                        if (sprites[3] >> 5) & 1 != 0:
+                            sprite_tile = numpy.fliplr(sprite_tile)
+
+                        # Palette
+                        if (sprites[3] >> 4) & 1 != 0:
+                            s_pal = [(obp1 & 3), ((obp1 & 12) >> 2), ((obp1 & 48) >> 4), (obp1 >> 6)]
+                        else:
+                            s_pal = [(obp0 & 3), ((obp0 & 12) >> 2), ((obp0 & 48) >> 4), (obp0 >> 6)]
+
                         for y in range(8):
                             for x in range(8):
                                 if sprite_tile[y][x] != 0:
-                                    self.display[sprites[0] + y - 16, sprites[1] + x - 8] = sprite_tile[y][x]
+                                    self.display[sprites[0] + y - 16, sprites[1] + x - 8] = s_pal[sprite_tile[y][x]]
 
 
