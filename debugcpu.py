@@ -60,15 +60,15 @@ class Registers:
         return [self["af"], self["bc"], self["de"], self["hl"], self["sp"], self.pc]
 
 class Memory:
-    rom = [0 for _ in range(2**16)]
+    mem = [0 for _ in range(2**16)]
 
     def __getitem__(self, key) -> int:
         if 0x0000 <= key <= 0xffff:
-            return self.rom[key]
+            return self.mem[key]
 
     def __setitem__(self, key, value) -> None:
         if 0x0000 <= key <= 0xffff:
-            self.rom[key] = value
+            self.mem[key] = value
 
     def reset(self) -> None:
-        self.rom = [0 for _ in range(2 ** 16)]
+        self.mem = [0 for _ in range(2 ** 16)]

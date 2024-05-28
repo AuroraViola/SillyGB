@@ -58,7 +58,7 @@ if __name__ == "__main__":
                 if cpu.registers.debug_compare() != expected_reg.debug_compare():
                     failed_reg += 1
 
-                if cpu.memory.rom != expected_ram.rom:
+                if cpu.memory.mem != expected_ram.mem:
                     failed_ram += 1
 
             if failed_reg == 0 and failed_ram == 0:

@@ -22,6 +22,8 @@ class Registers:
     ime_to_be_setted = 0
     ime = 0
 
+    dma_transfer = False
+
     def __getitem__(self, key):
         if key == "f":
             return (self.flagZ << 7) + (self.flagN << 6) + (self.flagH << 5) + (self.flagC << 4)
@@ -96,6 +98,9 @@ class Memory:
         elif 0xc000 <= key <= 0xddff:
             self.mem[key] = value
             self.mem[key + 0x2000] = value
+        elif key == 0xff46:
+            self.mem[key] = value
+            registers.dma_transfer = True
         else:
             self.mem[key] = value
 
@@ -431,7 +436,6 @@ def sbc_a_r8():
 def and_a_r8():
     registers.pc += 1
     registers["a"] &= registers[operand_r8]
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 1
@@ -440,7 +444,6 @@ def and_a_r8():
 def xor_a_r8():
     registers.pc += 1
     registers["a"] ^= registers[operand_r8]
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 0
@@ -449,7 +452,6 @@ def xor_a_r8():
 def or_a_r8():
     registers.pc += 1
     registers["a"] |= registers[operand_r8]
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 0
@@ -505,7 +507,6 @@ def sbc_a_imm8():
 def and_a_imm8():
     registers.pc += 2
     registers["a"] &= imm8
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 1
@@ -514,7 +515,6 @@ def and_a_imm8():
 def xor_a_imm8():
     registers.pc += 2
     registers["a"] ^= imm8
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 0
@@ -523,7 +523,6 @@ def xor_a_imm8():
 def or_a_imm8():
     registers.pc += 2
     registers["a"] |= imm8
-    registers["a"] & 255
     registers.flagZ = 0 if registers["a"] != 0 else 1
     registers.flagN = 0
     registers.flagH = 0
@@ -729,7 +728,6 @@ def ld_a_imm16():
     return 16
 def invalid():
     pass
-
 
 def rlc_r8():
     registers.pc += 2
@@ -984,8 +982,8 @@ def generate_table_cb():
 def execute_instruction():
     global imm8, imm16, condition, dest_source_r16mem, operand_r16, operand_r8, operand_stk_r16, operand_stk_r8, b3, tgt3
     opcode = memory[registers.pc]
-    imm8 = memory[registers.pc+1]
-    imm16 = memory[registers.pc+2]*256 + memory[registers.pc+1]
+    imm8 = memory[registers.pc + 1]
+    imm16 = (memory[registers.pc + 2] << 8) + memory[registers.pc+1]
 
     condition = cond[(opcode & 0b00011000) >> 3]
 
@@ -1087,6 +1085,11 @@ def joypad_interrupt():
     memory[registers["sp"]] = registers.pc & 255
     registers.pc = 0x60
 
+def dma_transfer():
+    to_transfer = memory[0xff46] << 8
+    for i in range(160):
+        memory[0xfe00 + i] = memory[to_transfer + i]
+
 def post_execution(ticks : int):
     clock.add_tick(ticks)
     if registers.ime_to_be_setted == 1:
@@ -1094,7 +1097,10 @@ def post_execution(ticks : int):
     elif registers.ime_to_be_setted == 2:
         registers.ime_to_be_setted = 0
         registers.ime = 1
-
+    if registers.dma_transfer:
+        registers.dma_transfer = False
+        dma_transfer()
+        clock.add_tick(640)
 
 jump_table = generate_table()
 jump_table_cb = generate_table_cb()
