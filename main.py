@@ -11,11 +11,14 @@ scaling_fact = 4
 
 if __name__ == "__main__":
     # Initialize display
-    screen = ppu.Display(4, cpu.memory)
+    screen = ppu.Display(4)
 
     # Load cartridge to memory
-    cartridge = cartridge.Cartridge("Roms/SillyTestdmg.gb")
-    cartridge.load_rom(cpu.memory)
+    cartridge.game = cartridge.Cartridge("Roms/SillyTest.gb")
+    print("Rom type", cartridge.game.romtype)
+    print("Rom size", cartridge.game.romsize)
+    print("Number of banks", cartridge.game.banks_num)
+    cartridge.game.load_rom()
 
     # Initialize joypad
     p1 = joypad.Joypad()

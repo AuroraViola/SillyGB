@@ -11,13 +11,13 @@ class Display:
     obp0 = [0, 1, 2, 3]
     obp1 = [0, 1, 2, 3]
 
-    def __init__(self, scaling_fact, memory):
+    def __init__(self, scaling_fact):
         pygame.init()
         self.scaling_fact = scaling_fact
         self.win = pygame.display.set_mode((160 * scaling_fact, 144 * scaling_fact))
         self.screen = pygame.Surface((160, 144))
         pygame.display.set_caption("SillyGB")
-        memory[0xff44] = 0x90
+        cpu.memory[0xff44] = 0x90
 
     def visualize_display(self):
         self.load_display()
@@ -100,10 +100,6 @@ class Display:
         return [oam[i:i + 4] for i in range(0, 160, 4)]
 
     def load_display(self):
-        scy = cpu.memory[0xff42]
-        scx = cpu.memory[0xff43]
-        wy = cpu.memory[0xff4a]
-        wx = cpu.memory[0xff4b]
         self.background.fill(0)
         if cpu.memory[0xff40] & 1 != 0:
             bg_pal = cpu.memory[0xff47]
@@ -112,6 +108,10 @@ class Display:
 
         # Load on display
         if cpu.memory[0xff40] & 128 != 0:
+            scy = cpu.memory[0xff42]
+            scx = cpu.memory[0xff43]
+            wy = cpu.memory[0xff4a]
+            wx = cpu.memory[0xff4b]
             for y in range(144):
                 bgy = (y + scy) & 255
                 for x in range(160):

@@ -1,5 +1,6 @@
 import debugcpu
 import prettyhex
+import cartridge
 
 class Registers:
     r = {
@@ -91,7 +92,12 @@ class Memory:
 
     def __setitem__(self, key, value):
         if (0x0000 <= key <= 0x7fff) or (0xfea0 <= key <= 0xfeff):
-            pass
+            if cartridge.game.romtype == 1:
+                if 0x2000 <= key <= 0x3fff:
+                    cartridge.game.bank = value & 31
+                    cartridge.game.is_switched_rom = True
+            else:
+                pass
         elif 0xe000 <= key <= 0xfdff:
             self.mem[key] = value
             self.mem[key - 0x2000] = value
@@ -1046,7 +1052,6 @@ def vblank_interrupt():
     registers.pc = 0x40
 
 def lcd_interrupt():
-    print("lcd interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -1056,7 +1061,6 @@ def lcd_interrupt():
     registers.pc = 0x48
 
 def timer_interrupt():
-    print("timer interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -1066,7 +1070,6 @@ def timer_interrupt():
     registers.pc = 0x50
 
 def serial_interrupt():
-    print("serial interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -1076,7 +1079,6 @@ def serial_interrupt():
     registers.pc = 0x58
 
 def joypad_interrupt():
-    print("joypad interrupt")
     registers["sp"] -= 1
     registers["sp"] &= 65535
     memory[registers["sp"]] = registers.pc >> 8
@@ -1101,6 +1103,8 @@ def post_execution(ticks : int):
         registers.dma_transfer = False
         dma_transfer()
         clock.add_tick(640)
+    if cartridge.game.is_switched_rom:
+        cartridge.game.switch_bank()
 
 jump_table = generate_table()
 jump_table_cb = generate_table_cb()
