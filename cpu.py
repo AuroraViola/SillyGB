@@ -123,6 +123,12 @@ class Tick:
         if self.scan_line_tick >= 456:
             self.scan_line_tick -= 456
             memory[0xff44] += 1
+            if memory[0xff44] == memory[0xff45]:
+                memory[0xff41] |= 2
+                if memory[0xff41] & 64 != 0:
+                    memory[0xff0f] |= 2
+            else:
+                memory[0xff41] &= 253
             if memory[0xff44] == 144:
                 memory[0xff0f] |= 1
             if memory[0xff44] >= 153:

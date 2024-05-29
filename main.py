@@ -1,4 +1,5 @@
 import os
+import sys
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import ppu
@@ -14,7 +15,7 @@ if __name__ == "__main__":
     screen = ppu.Display(4)
 
     # Load cartridge to memory
-    cartridge.game = cartridge.Cartridge("Roms/SillyTest.gb")
+    cartridge.game = cartridge.Cartridge(sys.argv[1])
     print("Rom type", cartridge.game.romtype)
     print("Rom size", cartridge.game.romsize)
     print("Number of banks", cartridge.game.banks_num)
